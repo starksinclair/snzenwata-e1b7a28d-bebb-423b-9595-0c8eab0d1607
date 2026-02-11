@@ -79,7 +79,28 @@ npx nx build dashboard
 
 ## Access Control
 
-### Roles & Permissions
+### Shared RBAC Policy (`libs/data`)
+
+Both API and Dashboard import the same permission map, so definitions are never out of sync:
+
+```typescript
+// libs/data/src/lib/rbac/permission.ts
+export enum Permission {
+  TASK_CREATE = 'TASK_CREATE',
+  TASK_READ = 'TASK_READ',
+  TASK_UPDATE = 'TASK_UPDATE',
+  TASK_DELETE = 'TASK_DELETE',
+  AUDIT_READ = 'AUDIT_READ',
+  ORG_CREATE = 'ORG_CREATE',
+  USER_CREATE = 'USER_CREATE',
+}
+
+export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  [Role.VIEWER]: [Permission.TASK_READ],
+  [Role.ADMIN]: [Permission.TASK_READ, Permission.TASK_CREATE, Permission.TASK_UPDATE, Permission.TASK_DELETE],
+  [Role.OWNER]: [Permission.TASK_READ, Permission.TASK_CREATE, Permission.TASK_UPDATE, Permission.TASK_DELETE, Permission.AUDIT_READ, Permission.ORG_CREATE, Permission.USER_CREATE],
+};
+```
 
 | Permission  | VIEWER | ADMIN | OWNER |
 | ----------- | ------ | ----- | ----- |
@@ -90,40 +111,253 @@ npx nx build dashboard
 | AUDIT_READ  |        |       | x     |
 | ORG_CREATE  |        |       | x     |
 
-### How Authorization Works
+---
 
-**Registration creates:**
+### API (Backend) — Three-Layer Enforcement
 
-- Organization
-- User (role: OWNER)
-- JWT returned
+RBAC is enforced at three levels in the API: **Guard**, **Service**, and **Org Scoping**. This defense-in-depth approach ensures security even if one layer is bypassed.
 
-**JWT contains:**
+#### 1. Guard Level — Route Protection
 
-- `{ sub, email, role, orgId }`
+The `@RequirePermissions()` decorator attaches required permissions as metadata. `JwtAuthGuard` validates the JWT, then `PermissionsGuard` checks the user's role against the required permissions:
 
-**Backend:**
+```typescript
+// apps/api/src/app/decorators/permissions.decorator.ts
+export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(REQUIRED_PERMISSIONS_KEY, permissions);
+```
 
-- `JwtAuthGuard` validates token
-- `PermissionsGuard` checks `ROLE_PERMISSIONS[user.role]`
-- Service layer enforces org scoping
+```typescript
+// apps/api/src/app/guards/permissions.guard.ts
+@Injectable()
+export class PermissionsGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
 
-**Org Scoping:**
+  canActivate(context: ExecutionContext): boolean {
+    const requiredPermissions = this.reflector.getAllAndOverride<Permission[]>(REQUIRED_PERMISSIONS_KEY, [context.getHandler(), context.getClass()]);
+    if (!requiredPermissions?.length) return true;
 
-- All database queries filter by `orgId`
-- Optional 2-level hierarchy supported via `getAllowedOrgIds()`
+    const user = context.switchToHttp().getRequest().user as JwtPayload;
+    if (!user?.role) throw new ForbiddenException('Permission missing');
 
-**Frontend:**
+    const allowed = ROLE_PERMISSIONS[user.role] ?? [];
+    const missing = requiredPermissions.filter((p) => !allowed.includes(p));
+    if (missing.length > 0) throw new ForbiddenException('Permission missing');
+    return true;
+  }
+}
+```
 
-- Reads JWT `role`
-- Uses `hasPermission()` for route guards
-- Hides UI actions accordingly
+Applied on the controller — every route in `TasksController` requires JWT + specific permission:
 
-_Backend remains final authority_
+```typescript
+// apps/api/src/app/tasks/tasks.controller.ts
+@Controller('tasks')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+export class TasksController {
 
-### Why file-based RBAC?
+  @Post()
+  @RequirePermissions(Permission.TASK_CREATE)
+  create(@Req() req: { user: JwtPayload }, @Body() dto: CreateTaskDto) {
+    return this.tasksService.create(req.user, dto);
+  }
 
-Permissions and role-to-permission mappings live in `libs/data/src/lib/rbac/permission.ts`, not in database tables. With a fixed role set (OWNER, ADMIN, VIEWER), this avoids unnecessary joins and migrations while keeping the policy shared between API and dashboard. For a system with dynamic or tenant-defined roles, these mappings would move to `permissions` and `role_permissions` DB tables.
+  @Get()
+  @RequirePermissions(Permission.TASK_READ)
+  findAll(@Req() req: { user: JwtPayload }) { ... }
+
+  @Put(':id')
+  @RequirePermissions(Permission.TASK_UPDATE)
+  update(@Req() req: { user: JwtPayload }, @Param('id') id: string, @Body() dto: UpdateTaskDto) { ... }
+
+  @Delete(':id')
+  @RequirePermissions(Permission.TASK_DELETE)
+  remove(@Req() req: { user: JwtPayload }, @Param('id') id: string) { ... }
+}
+```
+
+#### 2. Service Level — Business Logic Enforcement
+
+Even if guards are bypassed, the service re-checks permissions before executing business logic:
+
+```typescript
+// apps/api/src/app/tasks/tasks.service.ts
+@Injectable()
+export class TasksService {
+  hasPermission(user: JwtPayload, permission: Permission): boolean {
+    const granted = ROLE_PERMISSIONS[user.role] ?? [];
+    return granted.includes(permission);
+  }
+
+  assertPermission(user: JwtPayload, permission: Permission): void {
+    if (!this.hasPermission(user, permission)) {
+      throw new ForbiddenException('Permission missing');
+    }
+  }
+
+  async create(jwtPayload: JwtPayload, createTaskDto: CreateTaskDto) {
+    this.assertPermission(jwtPayload, Permission.TASK_CREATE); // <-- service-level check
+    const task = this.tasksRepository.create({
+      ...createTaskDto,
+      organization: { id: jwtPayload.orgId },
+      owner: { id: jwtPayload.sub },
+    });
+    return this.tasksRepository.save(task);
+  }
+
+  async update(jwtPayload: JwtPayload, id: string, updateTaskDto: UpdateTaskDto) {
+    this.assertPermission(jwtPayload, Permission.TASK_UPDATE); // <-- service-level check
+    // ... find and update task
+  }
+}
+```
+
+#### 3. Org Scoping — Data Isolation
+
+Every database query filters by the user's organization, ensuring users can never access another org's data:
+
+```typescript
+// apps/api/src/app/tasks/tasks.service.ts
+async findAll(jwtPayload: JwtPayload) {
+  this.assertPermission(jwtPayload, Permission.TASK_READ);
+  const allowedOrgIds = await this.organizationService.getAllowedOrgIds(jwtPayload.orgId);
+  return this.tasksRepository.find({
+    where: { organization: { id: In(allowedOrgIds) } }, // <-- org-scoped query
+    relations: ['organization', 'owner'],
+  });
+}
+```
+
+---
+
+### Dashboard (Frontend) — UI-Level Gating
+
+Frontend RBAC is **UX only** — it hides actions the user cannot perform. The backend remains the final authority.
+
+#### 1. AuthService — Client-Side Permission Check
+
+Decodes the JWT and checks `ROLE_PERMISSIONS` (same shared map as the API):
+
+```typescript
+// apps/dashboard/src/app/core/auth/auth.service.ts
+@Injectable({ providedIn: 'root' })
+export class AuthService {
+  readonly user = computed(() => {
+    const t = this.tokenSignal();
+    return t ? decodeJwt(t) : null;
+  });
+
+  hasPermission(permission: Permission): boolean {
+    const u = this.user();
+    if (!u) return false;
+    const granted = ROLE_PERMISSIONS[u.role] ?? [];
+    return granted.includes(permission);
+  }
+}
+```
+
+#### 2. Route Guards — Angular Functional Guards
+
+Routes are protected by `permissionGuard`, which reads required permissions from route data:
+
+```typescript
+// apps/dashboard/src/app/core/auth/permission.guard.ts
+export const permissionGuard: CanActivateFn = (route) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  if (!auth.isLoggedIn()) return router.createUrlTree(['/login']);
+
+  const permissions = route.data['permissions'] as Permission[];
+  if (!permissions?.length) return true;
+
+  const hasAll = permissions.every((p) => auth.hasPermission(p));
+  return hasAll ? true : router.createUrlTree(['/forbidden']);
+};
+```
+
+Applied on routes — each route declares its required permissions:
+
+```typescript
+// apps/dashboard/src/app/app.routes.ts
+{
+  path: 'tasks',
+  loadComponent: () => import('./features/tasks/task-list/task-list.component').then(m => m.TaskListComponent),
+  canActivate: [permissionGuard],
+  data: { permissions: [Permission.TASK_READ] },
+},
+{
+  path: 'tasks/new',
+  loadComponent: () => import('./features/tasks/task-form/task-form.component').then(m => m.TaskFormComponent),
+  canActivate: [permissionGuard],
+  data: { permissions: [Permission.TASK_CREATE] },
+},
+{
+  path: 'audit-log',
+  loadComponent: () => import('./features/audit/audit-list/audit-list.component').then(m => m.AuditListComponent),
+  canActivate: [permissionGuard],
+  data: { permissions: [Permission.AUDIT_READ] },
+},
+```
+
+#### 3. UI Visibility — Template-Level Gating
+
+Navigation items and action buttons are conditionally rendered based on permissions:
+
+```typescript
+// apps/dashboard/src/app/layout/layout.component.ts
+export class LayoutComponent {
+  auth = inject(AuthService);
+
+  get canReadAudit() {
+    return this.auth.hasPermission(Permission.AUDIT_READ);
+  }
+}
+```
+
+```html
+<!-- Only OWNER sees the Audit Log link -->
+@if (canReadAudit) {
+<a routerLink="/audit-log">Audit Log</a>
+}
+```
+
+#### 4. HTTP Error Interceptor — Graceful Fallback
+
+If a user somehow reaches a forbidden resource, the API returns 401/403 and the interceptor redirects:
+
+```typescript
+// apps/dashboard/src/app/core/auth/error.interceptor.ts
+export const errorInterceptor: HttpInterceptorFn = (req, next) => {
+  const router = inject(Router);
+  const auth = inject(AuthService);
+
+  return next(req).pipe(
+    catchError((err: HttpErrorResponse) => {
+      if (err.status === 401) {
+        auth.tokenValue = null;
+        router.navigate(['/login']);
+      } else if (err.status === 403) {
+        router.navigate(['/forbidden']);
+      }
+      return throwError(() => err);
+    }),
+  );
+};
+```
+
+---
+
+### RBAC Flow Summary
+
+```
+Request → JwtAuthGuard (validate token)
+       → PermissionsGuard (check ROLE_PERMISSIONS[role] vs @RequirePermissions)
+       → Service.assertPermission() (defense-in-depth re-check)
+       → Org-scoped DB query (data isolation)
+       → Response
+```
+
+_Backend is the single source of truth. Frontend gating only improves UX._
 
 ---
 
