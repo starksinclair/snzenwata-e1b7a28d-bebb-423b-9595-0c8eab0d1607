@@ -17,6 +17,12 @@
     "paths": {
       "@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data": [
         "libs/data/src/index.ts"
+      ],
+      "@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth": [
+        "libs/auth/src/index.ts"
+      ],
+      "@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth/nestjs": [
+        "libs/auth/src/nestjs.ts"
       ]
     }
   },

@@ -14,11 +14,9 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PermissionsGuard } from '../guards/permissions.guard';
-import { RequirePermissions } from '../decorators/permissions.decorator';
-import {
-  JwtPayload,
-  Permission,
-} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import { JwtPayload } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
+import { RequirePermissions } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth/nestjs';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

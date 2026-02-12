@@ -7,7 +7,7 @@ import {
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
 import { ThemeService } from '../core/theme/theme.service';
-import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
 import { IconComponent } from '../shared/icon.component';
 
 @Component({

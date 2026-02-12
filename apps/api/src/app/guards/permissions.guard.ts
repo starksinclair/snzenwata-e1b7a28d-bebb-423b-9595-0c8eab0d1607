@@ -8,10 +8,12 @@ import { Reflector } from '@nestjs/core';
 import {
   AuditReason,
   JwtPayload,
+} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import {
   Permission,
   ROLE_PERMISSIONS,
-} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
-import { REQUIRED_PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
+import { REQUIRED_PERMISSIONS_KEY } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth/nestjs';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {

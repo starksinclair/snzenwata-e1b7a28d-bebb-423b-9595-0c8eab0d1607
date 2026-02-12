@@ -12,15 +12,17 @@ import {
   CdkDrag,
   CdkDropList,
   moveItemInArray,
-  transferArrayItem, CdkDragHandle,
+  transferArrayItem,
+  CdkDragHandle,
 } from '@angular/cdk/drag-drop';
-import { TasksApiService, Task } from '../tasks-api.service';
+import { TasksApiService } from '../tasks-api.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import {
-  Permission,
+  Task,
   TaskCategory,
   TaskStatus,
 } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
 import { IconComponent } from '../../../shared/icon.component';
 
 type ViewMode = 'list' | 'board';

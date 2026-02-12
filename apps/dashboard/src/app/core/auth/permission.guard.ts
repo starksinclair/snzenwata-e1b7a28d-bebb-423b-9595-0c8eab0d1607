@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { Router, CanActivateFn, ActivatedRouteSnapshot } from '@angular/router';
 import { AuthService } from './auth.service';
-import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
 
 export const permissionGuard: CanActivateFn = (
   route: ActivatedRouteSnapshot,

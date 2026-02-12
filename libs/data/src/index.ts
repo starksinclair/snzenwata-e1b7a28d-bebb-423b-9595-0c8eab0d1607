@@ -4,4 +4,6 @@ export * from './lib/enums/organization.enum';
 export * from './lib/enums/audit-log.enum';
 export * from './lib/types/audit-log.type';
 export * from './lib/types/jwtpayload.type';
-export * from './lib/rbac/permission';
+export * from './lib/interfaces/auth.interface';
+export * from './lib/interfaces/audit-log.interface';
+export * from './lib/interfaces/task.interface';

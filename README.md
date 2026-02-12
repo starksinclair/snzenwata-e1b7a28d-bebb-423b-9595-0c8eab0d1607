@@ -1,5 +1,7 @@
 # Task Manager – Nx Monorepo
 
+<!-- fix the interface and create a auth libs, move all interfaces and decorators to libs -->
+
 Full-stack task management application with JWT authentication, role-based access control (RBAC), and organization-scoped data isolation.
 ![Database Schema](docs/home.png)
 

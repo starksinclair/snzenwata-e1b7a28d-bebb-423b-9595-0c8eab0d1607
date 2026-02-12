@@ -5,7 +5,8 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { AuditApiService, AuditLog } from '../audit-api.service';
+import { AuditApiService } from '../audit-api.service';
+import { AuditLog } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
 
 @Component({
   imports: [DatePipe],

@@ -2,10 +2,12 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   JwtPayload,
-  Permission,
-  ROLE_PERMISSIONS,
   Role,
 } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import {
+  Permission,
+  ROLE_PERMISSIONS,
+} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
 
 const TOKEN_KEY = 'accessToken';
 

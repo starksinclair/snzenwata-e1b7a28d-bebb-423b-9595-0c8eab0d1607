@@ -4,17 +4,8 @@ import { Observable } from 'rxjs';
 import {
   CreateTaskDto,
   UpdateTaskDto,
+  Task,
 } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
-
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  category: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 @Injectable({ providedIn: 'root' })
 export class TasksApiService {

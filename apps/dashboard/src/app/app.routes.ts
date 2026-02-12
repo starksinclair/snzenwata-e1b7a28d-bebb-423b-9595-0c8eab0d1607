@@ -1,7 +1,7 @@
 import { Route } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
 import { permissionGuard } from './core/auth/permission.guard';
-import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import { Permission } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
 
 export const appRoutes: Route[] = [
   {

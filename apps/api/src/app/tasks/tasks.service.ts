@@ -10,9 +10,11 @@ import {
   AuditReason,
   AuditResourceType,
   JwtPayload,
+} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+import {
   Permission,
   ROLE_PERMISSIONS,
-} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
+} from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/auth';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Task } from './entities/task.entity';
 import { In, Repository } from 'typeorm';
