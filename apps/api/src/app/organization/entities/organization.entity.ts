@@ -7,12 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-
-export enum OrganizationType {
-  COMPANY = 'COMPANY',
-  TEAM = 'TEAM',
-  PROJECT = 'PROJECT',
-}
+import { OrganizationType } from '@snzenwata-e1b7a28d-bebb-423b-9595-0c8eab0d1607/data';
 
 @Entity('organizations')
 export class Organization {
